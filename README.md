@@ -11,7 +11,7 @@ Major steps in the workflow include:
 Expected results include:
 * Detection and quantification of transcripts in targed regions with non-collapsed reads
 * The concise version of detection of transcripts in targed regions with collapsed reads
-* Customozied tappAS annotation file
+* Customized tappAS annotation file
 
 ## Software Requirements
 * [Conda](https://conda.io/projects/conda/en/latest/user-guide/install/index.html)
