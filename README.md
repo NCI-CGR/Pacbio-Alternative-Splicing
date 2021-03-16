@@ -48,7 +48,7 @@ Optional parameters:
 git clone https://github.com/NCI-CGR/Pacbio-Alternative-Splicing.git
 ```
 * Install required software
-* Create conda environment using the provide yaml file and activate it after installation:
+* Create conda environment using the provided yaml file and activate it after installation:
 ```bash
 conda env create -f pacbioAS_env.yaml
 conda activate pacbioAS
