@@ -1,0 +1,161 @@
+### This pipeline is for the detection and quantification of splicing junctions using Pacbio long reads sequencing data
+
+rule ccs:
+    input:
+          subread + "{sample}.bam"
+    output:
+          out + "ccs_bam/{sample}_ccs.bam"
+    threads: 16
+    shell:
+          """
+          ccs {input} {output} --noPolish --minPasses 1 2>log/{wildcards.sample}_ccs.err
+          """
+
+rule cluster:
+    input:
+          rules.ccs.output
+    output:
+          out + "cluster/{sample}.unpolished.bam",
+          out + "cluster/{sample}.unpolished.cluster_report.csv"
+    threads: 16
+    shell:
+          """
+          isoseq3 cluster {input} {output} -j 32 2>log/{wildcards.sample}_cluter.err
+          """
+
+rule polish:
+    input:
+          rules.cluster.output[0],
+          subread + "{sample}.bam"
+    output:
+          out + "polished/{sample}.polished.bam",
+          out + "polished/{sample}.polished.hq.fastq.gz",
+          out + "polished/{sample}.polished.hq.fastq",
+          out + "polished/{sample}.polished.hq.fasta.gz",
+          out + "polished/{sample}.polished.hq.fasta",
+          out + "polished/{sample}.polished.cluster_report.csv"
+    threads: 16
+    shell:
+          """
+          isoseq3 polish -j 16 {input[0]} {input[1]} {output[0]} 2>log/{wildcards.sample}_polish.err
+          gunzip -c {output[1]} > {output[2]} 2>log/{wildcards.sample}_gunzip.err
+          gunzip -c {output[3]} > {output[4]} 2>log/{wildcards.sample}_gunzip2.err
+          isoseq3 summarize {output[0]} {output[5]} 2>log/{wildcards.sample}_cluter_report.err
+          """
+
+rule gmap_index:
+    input:
+          genome = config["genome"]
+    output:
+          out + "gmap_index_complete.txt"
+    threads: 16
+    run:
+          global gref
+          if gref == '':
+             shell("""gmap_build -d {ref} {genome} -t 16 -D {out}gmap_index 2>log/gmap_index.err;touch {output}""")
+             gref = out + "gmap_index/" + ref
+          else:
+              shell("""touch {output}""")
+
+rule sqanti3_round1:
+    input:
+          out + "polished/{sample}.polished.hq.fasta",
+          rules.gmap_index.output
+    output:
+          out + "sqanti/{sample}.polished.hq_corrected.sam",
+          out + "sqanti/{sample}.polished.hq_corrected_sorted.sam"
+    threads: 16
+    shell:
+          """
+          python {sqanti3}/sqanti3_qc.py {input[0]} {gtf} {genome} --aligner_choice=gmap -x {gref} --skipORF --force_id_ignore -t 16 -d {out}sqanti/ 2>log/{wildcards.sample}_sqanti.err
+          samtools sort {output[0]} -o {output[1]} 2>log/{wildcards.sample}_sort.err
+          """
+
+rule targeted:
+    input:
+          out + "sqanti/{sample}.polished.hq_corrected_sorted.sam"
+    output:
+          out + "targeted/{sample}.polished.hq_corrected_sorted_targeted.sam"
+    threads: 16
+    run:
+          samfile = pysam.AlignmentFile(str(input), "r")
+          osamfile = pysam.AlignmentFile(str(output), "w", template=samfile)
+
+          for read in samfile:
+              if read.reference_name == cn and read.reference_start > st and read.reference_start < ed:
+                 osamfile.write(read)
+
+rule collapse:
+    input:
+          out + "polished/{sample}.polished.hq.fastq",
+          out + "targeted/{sample}.polished.hq_corrected_sorted_targeted.sam"
+    output:
+          out + "collapsed/{sample}.collapsed.rep.fq",
+          out + "collapsed/{sample}.collapsed.group.txt",
+          out + "collapsed/{sample}.collapsed.gff",
+          out + "collapsed/{sample}.collapsed.fasta",
+          out + "collapsed/{sample}.complete.txt"
+    threads: 8
+    shell:
+          """
+          python {tofu}/collapse_isoforms_by_sam.py --input {input[0]} --fq -s {input[1]} --dun-merge-5-shorter -o {out}collapsed/{wildcards.sample} 2>log/{wildcards.sample}_collapsed.err
+          fastq_to_fasta -i {output[0]} -o {output[3]} 2>log/{wildcards.sample}_fastq_tofasta2.err
+          touch {output[4]}
+          """
+
+rule count:
+    input:
+          out + "collapsed/{sample}.collapsed.group.txt",
+          out + "cluster/{sample}.unpolished.cluster_report.csv"
+    output:
+          out + "collapsed/{sample}.collapsed.read_stat.txt",
+          out + "collapsed/{sample}.collapsed.abundance.txt"
+    threads: 8
+    shell:
+          """
+          python {tofu}/get_abundance_post_collapse.py {out}collapsed/{wildcards.sample}.collapsed {input[1]} 2>log/{wildcards.sample}_count.err
+          """
+    
+rule filterd:
+    input:
+          out + "collapsed/{sample}.complete.txt",
+          out + "collapsed/{sample}.collapsed.abundance.txt"
+    output:
+          out + "collapsed/{sample}.collapsed.filtered.gff",
+          out + "collapsed/{sample}.collapsed.filtered.rep.fq",
+          out + "collapsed/{sample}.collapsed.filtered.rep.fasta"
+    threads: 8
+    shell:
+          """
+          python {tofu}/filter_away_subset.py {out}collapsed/{wildcards.sample}.collapsed 2>log/{wildcards.sample}_filter.err
+          fastq_to_fasta -i {output[1]} -o {output[2]} 2>log/{wildcards.sample}_fastq_tofasta3.err
+          """
+
+rule sqanti3_round2:
+    input:
+          out + "collapsed/{sample}.collapsed.filtered.rep.fasta"
+    output:
+          out + "sqanti_r2/{sample}.collapsed.filtered.rep_corrected.fasta",
+          out + "sqanti_r2/{sample}.collapsed.filtered.rep_corrected.sam",
+          out + "sqanti_r2/{sample}.collapsed.filtered.rep_corrected_sorted.sam",
+          out + "sqanti_r2/{sample}.collapsed.filtered.rep_classification.txt"
+    threads: 16
+    shell:
+          """
+          python {sqanti3}/sqanti3_qc.py {input} {gtf} {genome} --skipORF --aligner_choice=gmap -x {gref} -t 16 -d {out}sqanti_r2/ 2>log/{wildcards.sample}_sqanti_r2.err
+          samtools sort {output[1]} -o {output[2]} 2>log/{wildcards.sample}_sort2.err
+          """
+
+rule sqanti3_round2_filter:
+    input:
+          out + "sqanti_r2/{sample}.collapsed.filtered.rep_classification.txt",
+          out + "sqanti_r2/{sample}.collapsed.filtered.rep_corrected.fasta"
+    output:
+          out + "sqanti_r2/{sample}_sqanti_r2_filter_complete.txt"
+    threads: 24
+    shell:
+          """
+          python {sqanti3}/sqanti3_RulesFilter.py {input[0]} {input[1]} {gff3} 2>log/{wildcards.sample}_sqanti_r2_filter.err
+          touch {output}
+          """
+

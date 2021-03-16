@@ -1,0 +1,112 @@
+__default__:
+    mem: 24g
+    partition: quick,norm
+    time: '4:00:00'
+    scratch: lscratch:10 
+
+ccs:
+    mem: 220g
+    partition: norm
+    time: '100:00:00'
+
+merge:
+    mem: 160g
+    partition: quick,norm
+    time: '4:00:00'
+
+cluster:
+    mem: 160g
+    partition: norm
+    time: '100:00:00'
+
+cluster2:
+    mem: 160g
+    partition: norm
+    time: '100:00:00'
+
+polish:
+    mem: 160g
+    partition: norm
+    time: '100:00:00'
+
+polish2:
+    mem: 160g
+    partition: norm
+    time: '100:00:00'
+
+gmap_index:
+    mem: 100g
+    partition: quick,norm
+    time: '4:00:00'
+
+sqanti3_round1:
+    mem: 220g
+    partition: norm
+    time: '100:00:00'
+
+sqanti3_round1_2:
+    mem: 220g
+    partition: norm
+    time: '100:00:00'
+
+targeted:
+    mem: 128g
+    partition: quick,norm
+    time: '4:00:00'
+
+targeted2:
+    mem: 128g
+    partition: quick,norm
+    time: '4:00:00'
+
+collapse:
+    mem: 160g
+    partition: norm
+    time: '100:00:00'
+
+collapse2:
+    mem: 160g
+    partition: norm
+    time: '100:00:00'
+
+count:
+    mem: 128g
+    partition: norm
+    time: '100:00:00'
+
+count2:
+    mem: 128g
+    partition: norm
+    time: '100:00:00'
+
+filterd:
+    mem: 128g
+    partition: norm
+    time: '100:00:00'
+
+filterd2:
+    mem: 128g
+    partition: norm
+    time: '100:00:00'
+
+sqanti3_round2:
+    mem: 220g
+    partition: norm
+    time: '100:00:00'
+    scratch: lscratch:100
+
+sqanti3_round2_2:
+    mem: 220g
+    partition: norm
+    time: '100:00:00'
+    scratch: lscratch:100
+
+sqanti3_round2_filter:
+    mem: 160g
+    partition: norm
+    time: '100:00:00'
+
+kallisto_index:
+    mem: 64g
+    partition: quick,norm
+    time: '4:00:00'

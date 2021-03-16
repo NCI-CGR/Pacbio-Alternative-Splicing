@@ -1,0 +1,150 @@
+### This pipeline is for the generation of a universal annoation file for tappAS using Pacbio long reads sequencing data. 
+
+rule merge:
+    input:
+          expand(out + "ccs_bam/{sample}_ccs.bam",sample=samples),
+          expand(subread + "{sample}.subreadset.xml",sample=samples)
+    output:
+          out +"ccs_bam/merged_ccs.bam",
+          #subread +  "merged.subreadset.xml"
+          subread +  "merged.bam"
+    threads: 4
+    shell:
+          """
+          samtools merge {output[0]} {input[0]} 2>log/merge_ccs.err
+          samtools merge {output[1]} {input[1]} 2>log/merge_subread.err
+          """
+
+rule cluster2:
+    input:
+          out + "ccs_bam/merged_ccs.bam"
+    output:
+          out + "cluster/merged.unpolished.bam",
+          out + "cluster/merged.unpolished.cluster_report.csv"
+    threads: 16
+    shell:
+          """
+          isoseq3 cluster {input} {output[0]} -j 32 2>log/cluter.err
+          """
+
+rule polish2:
+    input:
+          out + "cluster/merged.unpolished.bam",
+          subread + "merged.bam"
+    output:
+          out +"polished/merged.polished.bam",
+          out + "polished/merged.polished.hq.fastq.gz",
+          out + "polished/merged.polished.hq.fastq",
+          out + "polished/merged.polished.hq.fasta.gz",
+          out + "polished/merged.polished.hq.fasta",
+          out + "polished/merged.polished.cluster_report.csv"
+    threads: 16
+    shell:
+          """
+          isoseq3 polish -j 16 {input[0]} {input[1]} {output[0]} 2>log/polish.err
+          gunzip -c {output[1]} > {output[2]} 2>log/gunzip.err
+          gunzip -c {output[3]} > {output[4]} 2>log/gunzip2.err
+          isoseq3 summarize {output[0]} {output[5]} 2>log/cluter_report.err
+          """
+
+rule sqanti3_round1_2:
+    input:
+          out + "polished/merged.polished.hq.fasta",
+          rules.gmap_index.output
+    output:
+          out + "sqanti/merged.polished.hq_corrected.sam",
+          out + "sqanti/merged.polished.hq_corrected.sorted.sam"
+    threads: 16
+    shell:
+          """
+          python {sqanti3}/sqanti3_qc.py {input[0]} {gtf} {genome} --aligner_choice=gmap -x {gref} --skipORF --force_id_ignore -t 16 -d {out}sqanti/ 2>log/sqanti.err
+          samtools sort {output[0]} -o {output[1]} 2>log/sort.err
+          """
+
+rule targeted2:
+    input:
+          out + "sqanti/merged.polished.hq_corrected.sorted.sam"
+    output:
+          out + "targeted/merged.polished.hq_corrected.sorted.targeted.sam"
+    threads: 16
+    run:
+          samfile = pysam.AlignmentFile(str(input), "r")
+          osamfile = pysam.AlignmentFile(str(output), "w", template=samfile)
+
+          for read in samfile:
+              if read.reference_name == cn and read.reference_start > st and read.reference_start < ed:
+                 osamfile.write(read)
+
+rule collapse2:
+    input:
+          out + "polished/merged.polished.hq.fastq",
+          out + "targeted/merged.polished.hq_corrected.sorted.targeted.sam"
+    output:
+          out + "collapsed/merged.collapsed.rep.fq",
+          out + "collapsed/merged.collapsed.group.txt",
+          out + "collapsed/merged.collapsed.gff",
+          out + "collapsed/merged.collapsed.fasta"
+    threads: 8
+    shell:
+          """
+          python {tofu}/collapse_isoforms_by_sam.py --input {input[0]} --fq -s {input[1]} --dun-merge-5-shorter -o {out}collapsed/merged 2>log/collapsed.err
+          fastq_to_fasta -i {output[0]} -o {output[3]} 2>log/fastq_tofasta2.err
+          """
+
+rule count2:
+    input:
+          out + "collapsed/merged.collapsed.group.txt",
+          out + "cluster/merged.unpolished.cluster_report.csv"
+    output:
+          out + "collapsed/merged.collapsed.read_stat.txt",
+          out + "collapsed/merged.collapsed.abundance.txt"
+    threads: 8
+    shell:
+          """
+          python {tofu}/get_abundance_post_collapse.py {out}collapsed/merged.collapsed {input[1]} 2>log/count.err
+          """
+    
+rule filterd2:
+    input:
+          out + "collapsed/merged.collapsed.gff",
+          out + "collapsed/merged.collapsed.abundance.txt"
+    output:
+          out + "collapsed/merged.collapsed.filtered.gff",
+          out + "collapsed/merged.collapsed.filtered.rep.fq",
+          out + "collapsed/merged.collapsed.filtered.rep.fasta"
+    threads: 8
+    shell:
+          """
+          python {tofu}/filter_away_subset.py {out}collapsed/merged.collapsed 2>log/filter.err
+          fastq_to_fasta -i {output[1]} -o {output[2]} 2>log/fastq_tofasta3.err
+          """
+
+rule sqanti3_round2_2:
+    input:
+          out + "collapsed/merged.collapsed.filtered.rep.fasta"
+    output:
+          out + "sqanti_r2/merged.collapsed.filtered.rep_corrected.fasta",
+          out + "sqanti_r2/merged.collapsed.filtered.rep_corrected.sam",
+          out + "sqanti_r2/merged.collapsed.filtered.rep_corrected.sorted.sam",
+          out + "sqanti_r2/merged_sqanti_r2_complete.txt"
+    threads: 16
+    shell:
+          """
+          python {sqanti3}/sqanti3_qc.py {input} {gtf} {genome} --skipORF --aligner_choice=gmap -x {gref} -t 16 -d {out}sqanti_r2/ --isoAnnotLite --gff3 {tappas_gff3} 2>log/sqanti_r2.err
+          samtools sort {output[1]} -o {output[2]} 2>log/sort2.err
+          touch {output[3]}
+          """
+
+rule kallisto_index:
+    input:
+          out + "sqanti_r2/merged.collapsed.filtered.rep_corrected.fasta",
+          out + "sqanti_r2/merged_sqanti_r2_complete.txt"
+    output:
+          out + "kallisto_index/complete.txt"
+    threads: 2
+    shell:
+          """
+          kallisto index -i {out}kallisto_index/index {input[0]} 2>log/kallisto_index.err
+          touch {output}
+          """
+

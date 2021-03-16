@@ -1,0 +1,8 @@
+#!/bin/bash
+mkdir -p log
+module load snakemake samtools || exit 1
+export PYTHONPATH=$PYTHONPATH:/data/DCEG_RTEL/references/cDNA_Cupcake/sequence/:/data/daij/conda/envs/sqanti3/lib/python3.7/site-packages/
+snakemake --cores=1 --unlock
+sbcmd="sbatch --cpus-per-task={threads} --output=log/snakejob_%j.out --time={cluster.time} --gres={cluster.scratch} --mem={cluster.mem} --partition={cluster.partition}"
+snakemake -pr --cluster-config config/cluster_config.yaml --cluster "$sbcmd" --keep-going --rerun-incomplete --jobs 100 --latency-wait 120 all
+

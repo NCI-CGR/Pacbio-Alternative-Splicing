@@ -1,0 +1,19 @@
+# path to subreads
+subread: 'subread/'
+# define 'targeted' region/s case by case
+targeted: chr8:73008864-73048122
+# change files if use other references  
+ref: 'hg38'
+genome: '/fdb/igenomes/Homo_sapiens/UCSC/hg38/Sequence/WholeGenomeFasta/genome.fa' 
+gtf: '/fdb/igenomes/Homo_sapiens/UCSC/hg38/Annotation/Genes/genes.gtf' 
+gff3: '/data/DCEG_RTEL/references/gff3_files/ucsc_hg38.gff3'
+tappas_gff3: '/data/DCEG_RTEL/references/tappas/Homo_sapiens_GRCh38_RefSeq_78.gff3'
+# path to apps
+tofu: "/data/DCEG_RTEL/references/cDNA_Cupcake/cupcake/tofu"
+sqanti3: "/data/DCEG_RTEL/references/SQANTI3"
+
+# optional: 
+# output directory, default working directory
+out: ''
+# path to gmap index 
+gmap_ref: '/data/DCEG_RTEL/references/gmap/index/gmap20201012/hg38'
