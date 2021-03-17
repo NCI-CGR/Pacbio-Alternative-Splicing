@@ -13,6 +13,8 @@ Expected results include:
 * The concise version of detection of transcripts in targed regions with collapsed reads
 * Customized tappAS annotation file
 
+[Glossary of related terms](https://github.com/NCI-CGR/Pacbio-Alternative-Splicing/blob/master/Pacbio_glossary.pdf)
+
 ## Software Requirements
 * [Conda](https://conda.io/projects/conda/en/latest/user-guide/install/index.html)
 * [Snakemake](https://snakemake.readthedocs.io/en/stable/)
